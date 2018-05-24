@@ -1,7 +1,10 @@
+#include <ButtonDebounce.h>
+
 #include <Adafruit_NeoPixel.h>
 
+#define BUTTON     13
 #define PIN_PIXEL  6
-#define NUM_PIXELS 60
+#define NUM_PIXELS 32
 
 // Parameter 1 = number of pixels in strip
 // Parameter 2 = Arduino pin number (most are valid)
@@ -18,14 +21,19 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(NUM_PIXELS, PIN_PIXEL,
 // and minimize distance between Arduino and first pixel.  Avoid connecting
 // on a live circuit...if you must, connect GND first.
 
+void onButtonChange(int state) {
+  Serial.println(state);
+}
+ButtonDebounce button(BUTTON, 250); // PIN 3 with 250ms debounce time
+
 void setup() {
     strip.begin();
     showInitSequence();
 
-    Serial.begin(9600);
-
-    // no writing for now, this breaks the communication
-    //Serial.println("Ready to receive commands.");
+    pinMode(BUTTON, INPUT_PULLUP);
+    button.setCallback(onButtonChange);
+    
+    Serial.begin(115200);
 }
 
 void showInitSequence() {
@@ -50,6 +58,7 @@ void showInitSequence() {
 }
 
 void loop() {
+    button.update();
     if (Serial.available()) {
         char command = Serial.read();
         switch (command) {
@@ -62,19 +71,45 @@ void loop() {
             case 'l':
                 commandLedToColor();
                 break;
+            case 'p':
+                commandPercent();
+                break;
+            case 'f':
+                commandFlash();
+                break;
             default:
                 break;
         }
     }
 }
 
-void commandApply() {
-    strip.show();
-}
 
 uint8_t color_r = 0;
 uint8_t color_g = 0;
 uint8_t color_b = 0;
+
+void commandFlash() {
+    colorWipe(strip.Color(color_r, color_g, color_b), 0);
+    delay(4000);
+    colorWipe(strip.Color(0, 0, 0), 10);
+}
+
+void commandPercent() {
+    byte r = Serial.read();
+    unsigned cnt = (strip.numPixels() * r) / 100;
+    for(uint16_t i=0; i<strip.numPixels(); i++) {
+	if(i < cnt) {
+	        strip.setPixelColor(i, strip.Color(color_r, color_g, color_b));
+	} else {
+	        strip.setPixelColor(i, strip.Color(0, 0, 0));
+	}
+    }
+    strip.show();
+}
+
+void commandApply() {
+    strip.show();
+}
 
 void commandSetColor() {
     while (!Serial.available());
@@ -210,4 +245,5 @@ uint32_t Wheel(byte WheelPos) {
         return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
     }
 }
+
 
